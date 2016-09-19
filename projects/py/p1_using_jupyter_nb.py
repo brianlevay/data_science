@@ -1,10 +1,10 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[4]:
 
 import pandas as pd
-white_house = pd.read_csv("2015_white_house.csv")
+white_house = pd.read_csv("data/2015_white_house.csv")
 print(white_house.shape)
 
 
