@@ -1,1 +1,3 @@
-This repository contains all of the exercises and projects that I've built through Dataquest.io.
+Data Science
+---
+This repository contains data science work that I've done for my own interests. Some of the projects and data sats come from Kaggle. The repository also contains guided projects and exercises from the Dataquest.io curriculum.

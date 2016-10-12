@@ -1,1 +1,0 @@
-No other R courses are available on Dataquest at the moment
