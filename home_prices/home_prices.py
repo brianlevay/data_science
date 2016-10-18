@@ -156,42 +156,49 @@ print(lot,"\n")
 
 # In[6]:
 
-prices_num = pd.DataFrame()
+def convert_df(df, type):
+    # Cleaning up NaN
+    df['BsmtFullBath'] = df['BsmtFullBath'].fillna(0)
+    df['BsmtHalfBath'] = df['BsmtHalfBath'].fillna(0)
+    df['TotalBsmtSF'] = df['TotalBsmtSF'].fillna(0)
+    df['GarageArea'] = df['GarageArea'].fillna(0)
+    
+    # Building new transformed dataframe
+    df_num = pd.DataFrame()
+    if (type == "train"):
+        df_num['SalePrice'] = df['SalePrice']
+    df_num['LotArea'] = df['LotArea']
+    df_num['OverallQual'] = df['OverallQual']
+    df_num['OverallCond'] = df['OverallCond']
+    df_num['YearBuilt'] = df['YearBuilt']
+    df_num['YearRemod'] = df['YearRemodAdd'] - df['YearBuilt'] 
+    df_num['Baths'] = df['FullBath'] + 0.5*df['HalfBath'] + df['BsmtFullBath'] + 0.5*df['BsmtHalfBath']
+    df_num['Bedrooms'] = df['BedroomAbvGr']
+    df_num['Kitchens'] = df['KitchenAbvGr']
+    df_num['Fireplaces'] = df['Fireplaces']
+    df_num['AveRmArea'] = df['GrLivArea'] / df['TotRmsAbvGrd']
+    df_num['BsmtArea'] = df['TotalBsmtSF']
+    df_num['GarageArea'] = df['GarageArea']
+    df_num['PorchArea'] = df['WoodDeckSF'] + df['OpenPorchSF'] + df['EnclosedPorch'] + df['3SsnPorch'] + df['ScreenPorch']
+    df_num['YrSold'] = df['YrSold']
+    
+    single_conv = {'1Fam': 1, 'Twnhs': 0, 'Duplex': 0, '2fmCon': 0, 'TwnhsE': 0} 
+    story_conv = {'2.5Unf': 2.5, '2Story': 2, '2.5Fin': 2.5, '1.5Fin': 1.5, '1Story': 1, '1.5Unf': 1.5, 'SLvl': 2, 'SFoyer': 2}
+    corner_conv = {'FR2': 1, 'FR3': 1, 'CulDSac': 0, 'Corner': 1, 'Inside': 0} 
+    df_num['Single'] = df['BldgType'].apply(lambda x: single_conv[x])
+    df_num['Stories'] = df['HouseStyle'].apply(lambda x: story_conv[x])
+    df_num['CornerLot'] = df['LotConfig'].apply(lambda x: corner_conv[x])
 
-# Add the value we want to model
-prices_num['SalePrice'] = prices['SalePrice']
+    # Convert neighborhoods to dummy variables, only add n-1 to dataframe
+    nb = pd.get_dummies(df['Neighborhood'],prefix="in",prefix_sep='_')
+    nb_cols = len(nb.columns)
+    nb = nb.iloc[:,0:nb_cols-1]
+    nb_cols = list(nb.columns)
+    df_num = pd.concat([df_num,nb],axis=1)
 
-# Copy and transform numeric variables
-prices_num['LotArea'] = prices['LotArea']
-prices_num['OverallQual'] = prices['OverallQual']
-prices_num['OverallCond'] = prices['OverallCond']
-prices_num['YearBuilt'] = prices['YearBuilt']
-prices_num['YearRemod'] = prices['YearRemodAdd'] - prices['YearBuilt']
-prices_num['Baths'] = prices['FullBath'] + 0.5*prices['HalfBath'] + prices['BsmtFullBath'] + 0.5*prices['BsmtHalfBath']
-prices_num['Bedrooms'] = prices['BedroomAbvGr']
-prices_num['Kitchens'] = prices['KitchenAbvGr']
-prices_num['Fireplaces'] = prices['Fireplaces']
-prices_num['AveRmArea'] = prices['GrLivArea'] / prices['TotRmsAbvGrd']
-prices_num['BsmtArea']  = prices['TotalBsmtSF']
-prices_num['GarageArea'] = prices['GarageArea']
-prices_num['PorchArea'] = prices['WoodDeckSF'] + prices['OpenPorchSF'] + prices['EnclosedPorch'] + prices['3SsnPorch'] + prices['ScreenPorch']
-prices_num['YrSold'] = prices['YrSold']
+    return df_num, nb_cols
 
-# Transform categorical variables
-single_conv = {'1Fam': 1, 'Twnhs': 0, 'Duplex': 0, '2fmCon': 0, 'TwnhsE': 0} 
-story_conv = {'2.5Unf': 2.5, '2Story': 2, '2.5Fin': 2.5, '1.5Fin': 1.5, '1Story': 1, '1.5Unf': 1.5, 'SLvl': 2, 'SFoyer': 2}
-corner_conv = {'FR2': 1, 'FR3': 1, 'CulDSac': 0, 'Corner': 1, 'Inside': 0} 
-prices_num['Single'] = prices['BldgType'].apply(lambda x: single_conv[x])
-prices_num['Stories'] = prices['HouseStyle'].apply(lambda x: story_conv[x])
-prices_num['CornerLot'] = prices['LotConfig'].apply(lambda x: corner_conv[x])
-
-# Convert neighborhoods to dummy variables, only add n-1 to dataframe
-nb = pd.get_dummies(prices['Neighborhood'],prefix="in",prefix_sep='_')
-nb_cols = len(nb.columns)
-nb = nb.iloc[:,0:nb_cols-1]
-nb_cols = list(nb.columns)
-prices_num = pd.concat([prices_num,nb],axis=1)
-
+prices_num, nb_cols = convert_df(prices,"train")
 prices_num
 
 
@@ -539,3 +546,34 @@ plt.show()
 # **Discussion:** I said I wasn't going to get into Decision Trees and other modelling techniques in this version, but I wanted to get a sense of how they might compare before we conclude. There are many knobs and dials that can be adjusted when building trees, but I only played with one: the minimum samples per leaf. You can see from the plots that when the trees are allowed to have very few samples per leaf, the accuracy skyrockets. But, it's artificial. The tree is being tuned to that dataset specifically, and if we did cross-validation, we'd see the accuracy plummet on test sets. Our dataset is large (1460 rows), but even having 20-30 samples per leaf (which means a LOT of leaves) still leads to larger errors than our linear regression model. That said, there may be a lot that can be tuned to improve performance. But, that will wait for another day!
 
 # **Conclusions:** In the end, I settled on a multi-variate linear regression model with 41 variables. More than half of those variables are dummy variables representing a single categorical variable: neighborhood. Based on the results from incrementally adding regression parameters, it's clear that location (neighborhood) is the best predictor of housing sale price. Overall quality of the house, number of bathrooms, lot size, and size of basement rounded out the top 5. The addition of the other variables led to marginal but noticeable improvements, so they were kept. Our final root mean squared error, based on cross-validation experiments, is ~\$30k, but more than 1/3 of our predictions are within \$10k of the actual price. 
+
+# Predictions
+# ---
+
+# **Transforming the Test Data**
+
+# In[19]:
+
+test = pd.read_csv("test.csv")
+
+test_num, test_nb_cols = convert_df(test,"test")
+min_index = len(prices_num) + 1
+max_index = len(test_num) + min_index
+test_num['Id'] = range(min_index,max_index)
+test_num = test_num.set_index(keys=['Id'],drop=True)
+test_num.index.name = None
+
+test_num
+
+
+# In[20]:
+
+X_train = prices_num[reg_cols]
+y_train = prices_num['SalePrice']
+X_test = test_num[reg_cols]
+
+lr.fit(X_train,y_train)
+predictions = lr.predict(X_test)
+test_num['SalePrice'] = predictions
+test_num.to_csv("my_submission.csv",columns=['SalePrice'],index_label="Id")
+
