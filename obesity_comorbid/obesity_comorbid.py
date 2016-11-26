@@ -37,7 +37,7 @@
 # 
 # This section imports the main math and plotting libraries that we'll use throughout the project
 
-# In[17]:
+# In[35]:
 
 import math
 import numpy as np
@@ -49,7 +49,7 @@ get_ipython().magic('matplotlib inline')
 # 
 # This section creates the function that generates a synthetic dataset for our example plot
 
-# In[18]:
+# In[36]:
 
 def create_synthetic_OR_plot():
     X_locations = [x for x in range(0,10)]
@@ -104,7 +104,7 @@ def create_synthetic_OR_plot():
 # 
 # Re-run this section below to see how the randomness in the function can create a range of variances!
 
-# In[19]:
+# In[37]:
 
 create_synthetic_OR_plot()
 
@@ -126,7 +126,7 @@ create_synthetic_OR_plot()
 # 
 # This section imports the necessary modules to implement the API calls. The main package used for this section is the Entrez submodule from Biopython.
 
-# In[20]:
+# In[38]:
 
 import time
 from Bio import Entrez
@@ -143,7 +143,7 @@ Entrez.email = "brianjlevay@gmail.com"
 # 4. Write the relevant parts of each result (number, abstract, and mesh terms) to a file
 # 5. Close the file
 
-# In[21]:
+# In[39]:
 
 def get_api_data(terms, filename):
     f = open(filename + '.txt', 'w')
@@ -203,7 +203,7 @@ def get_api_data(terms, filename):
 # 
 # This block of code uses the generalized function defined above to retrieve the data from PubMed. This function only needs to be run once, and afterwards, the data will be stored in a local file.
 
-# In[22]:
+# In[40]:
 
 # Need to specify obesity as the major MeSH descriptor (MajorTopicYN="Y") [majr] vs [majr:noexp]
 
@@ -220,13 +220,14 @@ obesity_terms = 'obesity[majr] 2000:2012[pdat]'
 # 
 # The MeSH descriptors file is large, so it will not be stored along with this code and the intermediate data products. Instead, you can download it from the following ftp site. I did not directly link the file below, because this is one you don't want to accidently start downloading with a careless click!
 # 
-# [Location for File](ftp://nlmpubs.nlm.nih.gov/online/mesh/2015/)
+# Location for File:  
+# ftp://nlmpubs.nlm.nih.gov/online/mesh/2015/
 
 # ## Setting Up the Environment
 # 
 # This section imports BeautifulSoup, which is used for XML parsing.
 
-# In[23]:
+# In[41]:
 
 from bs4 import BeautifulSoup
 
@@ -237,7 +238,7 @@ from bs4 import BeautifulSoup
 # 
 # This function opens the definitions file, extracts only the descriptors that match a SemanticTypeName specified as an argument, and writes those terms to another file. It's important to note that this function only considers semantic types listed under the preferred concept!
 
-# In[24]:
+# In[42]:
 
 def get_descriptors(semantic_type, filename):
     f = open('desc2015.xml', 'r')
@@ -268,7 +269,7 @@ def get_descriptors(semantic_type, filename):
 # 
 # This block of code runs the function defined above to generate a file with a list of applicable descriptors. You only need to run this once, and all future data access will come from the newly created file.
 
-# In[25]:
+# In[43]:
 
 # Only need to run this function once to get all of the relevant terms
 
@@ -279,13 +280,13 @@ def get_descriptors(semantic_type, filename):
 # 
 # This section loads the data from the raw PubMed records (previously stored from the API calls) and the disease terms (previously stored from the descriptors list) into their respective data structures for use.
 
-# In[33]:
+# In[44]:
 
 f = open('mesh_disease_syndrome_terms.txt', 'r')
 disease_terms = f.read()
 f.close()
 
-disease_terms = disease_terms.split('\n')
+disease_terms = set(disease_terms.split('\n'))
 print("{} terms in the disease list.".format(len(disease_terms)))
 
 f = open('obesity_pubmed.txt', 'r')
@@ -305,7 +306,7 @@ for record in pubmed_raw:
     record_dict['MESH'] = lines[5].split("; ")
     pubmed_records.append(record_dict)
     
-print("\nEXAMPLE RECORD")
+print("\nEXAMPLE RECORD\n")
 for item in pubmed_records[0]:
     print("{0}: {1}".format(item,pubmed_records[0][item]))
 
@@ -321,6 +322,151 @@ for item in pubmed_records[0]:
 # 5. The research groups that study disease 'A' might just prefer breaking up their studies into smaller papers, or they might just publish more papers in general when compared to groups that focus on disease 'B'
 # 
 # There are almost certainly other reasons not outlined above. I'll talk about these issues more, in a bit.
+
+# ## Counting the Occurrences
+# 
+# This section gets the number of occurrences of each disease term in MeSH keywords. It also gets the number of disease terms per paper. The algorithm works by iterating through the records, and for each record, it iterates through the MeSH term. If a term is found in the "disease_terms" list, then that term is incremented by 1 in disease_counts. In addition, each valid disease term in a record is counted, and the total number of valid terms per record is stored in the diseases_per_paper dictionary.
+
+# In[45]:
+
+disease_counts = {}
+diseases_per_paper = {}
+
+start_time = time.time()
+for record in pubmed_records:
+    term_ct = 0
+    for term in record['MESH']:
+        if term in disease_terms:
+            if term in disease_counts:
+                disease_counts[term] += 1
+            else:
+                disease_counts[term] = 1
+            term_ct += 1
+    if term_ct in diseases_per_paper:
+        diseases_per_paper[term_ct] += 1
+    else:
+        diseases_per_paper[term_ct] = 1
+end_time = time.time()
+
+print("Time for algorithm: {} seconds\n".format(round(end_time - start_time),2))
+
+
+# ## Looking at the Raw Data
+# 
+# This section makes some general observations about the results.
+
+# In[101]:
+
+import pandas as pd
+disease_cts_df = pd.DataFrame.from_dict(disease_counts, orient='index')
+disease_cts_df.reset_index(inplace=True)
+disease_cts_df.columns = ['Disease','Cts']
+disease_cts_df.sort_values('Cts', ascending=False, inplace=True)
+disease_cts_df
+
+
+# In[104]:
+
+pct_zero = 100*diseases_per_paper[0]/len(pubmed_records)
+pct_one = 100*diseases_per_paper[1]/len(pubmed_records)
+pct_more = 100 - pct_one - pct_zero
+
+more_than_one_df = disease_cts_df.loc[disease_cts_df['Cts'] > 1]
+more_than_five_df = disease_cts_df.loc[disease_cts_df['Cts'] > 5]
+more_than_ten_df = disease_cts_df.loc[disease_cts_df['Cts'] > 10]
+more_than_twenty_df = disease_cts_df.loc[disease_cts_df['Cts'] > 20]
+more_than_hundred_df = disease_cts_df.loc[disease_cts_df['Cts'] > 100]
+more_than_twohund_df = disease_cts_df.loc[disease_cts_df['Cts'] > 200]
+
+total_mentions = disease_cts_df['Cts'].sum()
+papers_with_one_or_more = len(pubmed_raw) - diseases_per_paper[0]
+
+print("Number of Disease Terms Per Paper")
+print(diseases_per_paper, "\n")
+print("Percentage of Papers With No Disease Terms in MeSH Keywords")
+print("{0:.2f} %\n".format(pct_zero))
+print("Percentage of Papers With One Disease Term in MeSH Keywords")
+print("{0:.2f} %\n".format(pct_one))
+print("Percentage of Papers With Two or More Disease Terms in MeSH Keywords")
+print("{0:.2f} %\n".format(pct_more))
+print("Total Number of Unique Disease Terms Found in the MeSH Keywords")
+print(len(disease_counts),"\n")
+
+print("Number of diseases or syndromes with >   0 mentions: {}".format(len(disease_cts_df)))
+print("Number of diseases or syndromes with >   1 mentions: {}".format(len(more_than_one_df)))
+print("Number of diseases or syndromes with >   5 mentions: {}".format(len(more_than_five_df)))
+print("Number of diseases or syndromes with >  10 mentions: {}".format(len(more_than_ten_df)))
+print("Number of diseases or syndromes with >  20 mentions: {}".format(len(more_than_twenty_df)))
+print("Number of diseases or syndromes with > 100 mentions: {}".format(len(more_than_hundred_df)))
+print("Number of diseases or syndromes with > 200 mentions: {}".format(len(more_than_twohund_df)))
+
+print("\nTotal number of times disease or syndrome terms were mentioned: {}".format(total_mentions))
+print("Total number of papers with at least one disease or syndrome term: {}".format(papers_with_one_or_more))
+
+
+# ## Plotting the Data
+
+# In[105]:
+
+max_X = len(more_than_twohund_df)
+X_vals = [x for x in range(0,max_X)]
+
+fig = plt.figure(figsize=(12,7))
+ax = fig.add_subplot(1,1,1)
+ax.bar(X_vals,more_than_twohund_df['Cts'],align='center',color='lightblue')
+ax.set_xticks(X_vals)
+ax.set_xticklabels(more_than_twohund_df['Disease'], rotation=90)
+ax.set_xlim([-1,max_X])
+ax.set_xlabel('Disease or Syndrome')
+ax.set_ylabel('Number of Occurrences as MeSH Terms')
+ax.set_title('Number of Times a Disease Was Mentioned in Association with Obesity (2000-2012) [> 200 Mentions, MeSH]')
+plt.show()
+
+
+# ## Discussion
+# 
+# First, it's worth noting that the majority of the PubMed records that we retrieved (~59 %) don't discuss any diseases or syndromes in association with obesity. Approximately 26 % of the records contain only one associated disease or syndrome keyword, and the rest contain two or more. One record even contains 14 disease keywords in its MeSH terms!
+# 
+# Second, it's worth noting that, although there were 1089 different diseases or syndromes mentioned at least once, only 398 were mentioned more than 5 times. You can see if the figure above (only showing terms mentioned > 200 times) that there is a long tail, with a large number of diseases only discussed (alongside obesity) in a relatively small number of papers.
+# 
+# So, which diseases are discussed most often alongside obesity? 
+# 
+# 1. Diabetes Mellitus, Type 2
+# 2. Cardiovascular Diseases
+# 3. Metabolic Syndrome X
+# 4. Hypertension
+# 5. Diabetes Mellitus
+# 6. Fatty Liver
+# 7. Prader-Willi Syndrome
+# 8. Pregnancy Complications
+# 9. Chronic Disease
+# 10. Sleep Apnea, Obstructive
+# 
+# It's pretty clear that many of the disease / syndrome terms are related in nature. If I had more of a medical background (and understood the diseases better), I'd group similar conditions to better understand the classes of problems being studied.
+# 
+# So, what can we make of this data? As discussed at the beginning of this section, more studies (or more papers) do not necessarily mean higher incidence rates in obese populations! More studies simply mean that... more studies were conducted! It could be that the diseases with more attention are more prevalent (what we want), more severe, more treatable, more ambiguous (unclear odds ratios), etc. The only way to truly determine which of these diseases are comorbid (odds ratios > 1) is to extract the data from the records themselves.
+
+# # SECTION 5: CAN WE EXTRACT ODDS RATIOS FROM ABSTRACTS?
+# 
+# Content goes here...
+
+# In[88]:
+
+print("Coming soon!")
+
+
+# # SECTION 6: CAN WE LINK NUMBER OF CITATIONS TO COMORBIDITY?
+# 
+# Content goes here...
+
+# In[90]:
+
+print("Coming soon!")
+
+
+# # CONCLUSIONS
+# 
+# Content goes here...
 
 # In[ ]:
 
