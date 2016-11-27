@@ -479,30 +479,81 @@ for record in pubmed_records:
         break
 
 
+# ## Attempting to Get Values from the Text
+# 
+# In this section, we'll attempt to get some of the desired odds ratios out of the abstracts. The approach that we'll use here is a very simple one, using regex searchs with a few key expressions. We'll almost certainly miss reported odds ratios using this technique. In addition, we won't be able to distinguish P(Disease|Obesity) from P(Obesity|Disease), and we won't be able to know which disease corresponds to which odds ratio if multiple are reported in a study. Language processing is complicated, and in a real study, this section would require the bulk of the allocated time.
+
+# In[216]:
+
+import re
+
+study_results = []
+start_time = time.time()
+for record in pubmed_records:
+    study_diseases = []
+    study_values = []
+    has_or_terms = False
+    for mesh_term in record['MESH']:
+        if mesh_term in disease_terms:
+            study_diseases.append(mesh_term)
+    if len(study_diseases) > 0:
+        text = record['ABSTRACT'].lower().replace('~','')
+        search1 = re.findall(r'or = (?:\d*\.)?\d+', text)
+        search2 = re.findall(r'o.r. = (?:\d*\.)?\d+', text)
+        search3 = re.findall(r'odds ratio = (?:\d*\.)?\d+', text)
+        search4 = re.findall(r'odds ratio is (?:\d*\.)?\d+', text)
+        search5 = re.findall(r'odds ratio of (?:\d*\.)?\d+', text)
+        if len(search1) > 0:
+            study_values += search1
+        if len(search2) > 0:
+            study_values += search2
+        if len(search3) > 0:
+            study_values += search3
+        if len(search4) > 0:
+            study_values += search4
+        if len(search5) > 0:
+            study_values += search5
+        if len(study_values) > 0:
+            study_results.append([record['ID'],study_diseases, study_values])
+end_time = time.time()
+
+print("Total Number of Records Found with OR Values: {}\n".format(len(study_results)))
+print("Examples of Results:\n")
+for i in range(0,30):
+    print(study_results[i][0], " ", study_results[i][1], " ", study_results[i][2])
+
+
+# ## Validating the Results
+# 
+# In this section, we'll pull the abstracts for a few records and compare them to the results obtained above. If the odds ratios that we scraped appear to be in-context and match the type of data we're looking for, we might have some more confidence in our methods.
+
 # In[ ]:
 
 
 
 
-# In[ ]:
-
-
-
-
-# # SECTION 6: ADDITIONAL WORK
+# ## Refining the Results
 # 
 # Content goes here...
 
-# In[131]:
+# In[ ]:
 
-print("Coming soon!")
 
+
+
+# ## Plotting the Data
+# 
+# Content goes here...
+
+# In[ ]:
+
+
+
+
+# ## Discussion
+# 
+# Content goes here...
 
 # # CONCLUSIONS
 # 
 # Content goes here...
-
-# In[132]:
-
-print("Coming soon!")
-
