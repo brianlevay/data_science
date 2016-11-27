@@ -37,7 +37,7 @@
 # 
 # This section imports the main math and plotting libraries that we'll use throughout the project
 
-# In[35]:
+# In[138]:
 
 import math
 import numpy as np
@@ -49,7 +49,7 @@ get_ipython().magic('matplotlib inline')
 # 
 # This section creates the function that generates a synthetic dataset for our example plot
 
-# In[36]:
+# In[117]:
 
 def create_synthetic_OR_plot():
     X_locations = [x for x in range(0,10)]
@@ -104,14 +104,14 @@ def create_synthetic_OR_plot():
 # 
 # Re-run this section below to see how the randomness in the function can create a range of variances!
 
-# In[37]:
+# In[118]:
 
 create_synthetic_OR_plot()
 
 
 # # SECTION 1: GETTING THE API DATA
 # 
-# This section is a one-time-use block of code meant to download the relevant data from the Entrez PubMed database and write it to a file. All future references to the data will come from the file itself, to save network bandwidth.
+# This section is a one-time-use block of code meant to download the relevant data from the Entrez PubMed database and write it to a file. All future references to the data will come from the file itself, to save network bandwidth. This step is critical, though. If the wrong search terms are used, or the incorrect data is extracted and stored, the entire rest of the analysis can be compromised! The search terms used will be discussed below.
 # 
 # **Storage Format for Each Publication:**
 # 
@@ -126,7 +126,7 @@ create_synthetic_OR_plot()
 # 
 # This section imports the necessary modules to implement the API calls. The main package used for this section is the Entrez submodule from Biopython.
 
-# In[38]:
+# In[119]:
 
 import time
 from Bio import Entrez
@@ -135,19 +135,11 @@ Entrez.email = "brianjlevay@gmail.com"
 
 # ## Defining the Function
 # 
-# This section defines a generic function for getting PubMed records and writing the relevant data to a file. The function accepts search terms and a filename as arguments. The flow is as follows:
-# 
-# 1. Open a file for writing
-# 2. Perform an initial pubmed search (eSearch), and store the results on the server (usehistory)
-# 3. Iteratively perform API calls (eFetch) to get the results, 10000 at a time
-# 4. Write the relevant parts of each result (number, abstract, and mesh terms) to a file
-# 5. Close the file
+# This section defines a generic function for getting PubMed records and writing the relevant data to a file. The function accepts search terms, a filename, and a keyword to determine whether to fetch the results. An initial PubMed search is performed (eSearch), and the results are stored on the server by using the 'usehistory' keyword. The search key and web environment terms are returned, and if the user opts to fetch the results, the records are downloaded in batches, 10000 at a time (using eFetch). The records are stripped down and the relevant information is stored in a local file for later access.
 
-# In[39]:
+# In[139]:
 
-def get_api_data(terms, filename):
-    f = open(filename + '.txt', 'w')
-    
+def get_api_data(terms, filename, want_fetch=False):
     handle = Entrez.esearch(db='pubmed', term=terms, usehistory='y')
     search = Entrez.read(handle)
     handle.close()
@@ -157,61 +149,67 @@ def get_api_data(terms, filename):
     web = search['WebEnv']
     print("{} records found through eSearch.".format(count))
     
-    max_ret = 10000
-    steps_tot = math.ceil(count / max_ret)
-    steps = [x*max_ret for x in range(0,steps_tot)]
-    total_records = 0
-    
-    for step in steps:
-        time.sleep(30)
-        handle = Entrez.efetch(db='pubmed', query_key=query, WebEnv=web, retmode='xml', retstart=step, retmax=max_ret)
-        fetch = Entrez.read(handle)
-        handle.close()
-        print("Step {}: API batch returned.".format(step))
-    
-        for entry in fetch:
-            total_records += 1
-            f.write('PUBMED_ID\n')
-            f.write(entry['PubmedData']['ArticleIdList'][0] + '\n')
-            f.write('ABSTRACT\n')
-            try:
-                abstract = entry['MedlineCitation']['Article']['Abstract']['AbstractText'][0]
-                if abstract == '':
-                    abstract = 'No abstract available'
+    if want_fetch == True:
+        f = open(filename + '.txt', 'w')
+        
+        max_ret = 10000
+        steps_tot = math.ceil(count / max_ret)
+        steps = [x*max_ret for x in range(0,steps_tot)]
+        total_records = 0
+
+        for step in steps:
+            time.sleep(30)
+            handle = Entrez.efetch(db='pubmed', query_key=query, WebEnv=web, retmode='xml', retstart=step, retmax=max_ret)
+            fetch = Entrez.read(handle)
+            handle.close()
+            print("Step {}: API batch returned.".format(step))
+
+            for entry in fetch:
+                total_records += 1
+                f.write('PUBMED_ID\n')
+                f.write(entry['PubmedData']['ArticleIdList'][0] + '\n')
+                f.write('ABSTRACT\n')
                 try:
-                    f.write(abstract + '\n')
-                except:
+                    abstract = entry['MedlineCitation']['Article']['Abstract']['AbstractText'][0]
+                    if abstract == '':
+                        abstract = 'No abstract available'
                     try:
-                        abstract = abstract.encode('cp1252', 'replace').decode('cp1252')
                         f.write(abstract + '\n')
                     except:
-                        f.write('Abstract could not be printed.\n')
-            except:
-                f.write('No abstract available.\n')
-            f.write('MESH\n')
-            mesh_str = ''
-            for mesh in entry['MedlineCitation']['MeshHeadingList']:
-                mesh_str += mesh['DescriptorName'] + '; '
-            f.write(mesh_str[0:len(mesh_str)-2] + '\n')    
-            f.write('\n')
-    
-    f.close()
-    print("{} records retrieved via eFetch and written to the file.".format(total_records))
+                        try:
+                            abstract = abstract.encode('cp1252', 'replace').decode('cp1252')
+                            f.write(abstract + '\n')
+                        except:
+                            f.write('Abstract could not be printed.\n')
+                except:
+                    f.write('No abstract available.\n')
+                f.write('MESH\n')
+                mesh_str = ''
+                for mesh in entry['MedlineCitation']['MeshHeadingList']:
+                    mesh_str += mesh['DescriptorName'] + '; '
+                f.write(mesh_str[0:len(mesh_str)-2] + '\n')    
+                f.write('\n')
+
+        f.close()
+        print("{} records retrieved via eFetch and written to the file.".format(total_records))
 
 
 # ## Running the Function to Gather the Data
 # 
-# This block of code uses the generalized function defined above to retrieve the data from PubMed. This function only needs to be run once, and afterwards, the data will be stored in a local file.
+# This block of code uses the generalized function defined above to retrieve the data from PubMed. This function only needs to be run once, and afterwards, the data will be stored in a local file. 
+# 
+# Getting the search terms right for this exercise is critical, but an individual could likely spend days trying to understand the nuances of the descriptors / subheadings / modifiers used to retrieve data from the database. Initially, I chose to use a simple, high-level search just using 'obesity' and a date range, but this **retrieved a lot of irrelevant records**. I tried a modified search using 'obesity' with a subheading of 'morbidity', and the results appear to be more topical. However, the choices made at this step will ripple through the rest of the project, so it's important to be aware of the tradeoffs.
 
-# In[40]:
+# In[147]:
 
-# Need to specify obesity as the major MeSH descriptor (MajorTopicYN="Y") [majr] vs [majr:noexp]
+# Need to specify obesity as the major MeSH descriptor (MajorTopicYN="Y") [majr]
 
 obesity_terms = 'obesity[majr] 2000:2012[pdat]'
+obesity_morbidity_terms = 'obesity/morbidity[majr] 2000:2012[pdat]'
 
 # Only need to run this function once to get all of the relevant API data
 
-# get_api_data(obesity_terms, 'obesity_pubmed')
+# get_api_data(obesity_morbidity_terms, 'obesity_pubmed', want_fetch=True)
 
 
 # # SECTION 2: CATEGORIZING MESH TERMS
@@ -227,7 +225,7 @@ obesity_terms = 'obesity[majr] 2000:2012[pdat]'
 # 
 # This section imports BeautifulSoup, which is used for XML parsing.
 
-# In[41]:
+# In[122]:
 
 from bs4 import BeautifulSoup
 
@@ -238,7 +236,7 @@ from bs4 import BeautifulSoup
 # 
 # This function opens the definitions file, extracts only the descriptors that match a SemanticTypeName specified as an argument, and writes those terms to another file. It's important to note that this function only considers semantic types listed under the preferred concept!
 
-# In[42]:
+# In[123]:
 
 def get_descriptors(semantic_type, filename):
     f = open('desc2015.xml', 'r')
@@ -269,7 +267,7 @@ def get_descriptors(semantic_type, filename):
 # 
 # This block of code runs the function defined above to generate a file with a list of applicable descriptors. You only need to run this once, and all future data access will come from the newly created file.
 
-# In[43]:
+# In[124]:
 
 # Only need to run this function once to get all of the relevant terms
 
@@ -280,7 +278,7 @@ def get_descriptors(semantic_type, filename):
 # 
 # This section loads the data from the raw PubMed records (previously stored from the API calls) and the disease terms (previously stored from the descriptors list) into their respective data structures for use.
 
-# In[44]:
+# In[152]:
 
 f = open('mesh_disease_syndrome_terms.txt', 'r')
 disease_terms = f.read()
@@ -313,13 +311,21 @@ for item in pubmed_records[0]:
 
 # # SECTION 4: COUNTING PAPERS THAT MENTION DISEASES
 # 
-# This section determines the number of papers that mention each disease as a MeSH keyword. It's important to note that the number of papers talking about a disease (in conjunction with obesity) actually tells us nothing about comorbidity, unless we make some strong assumptions. Some possible explanations for why disease A is talked about more than disease B:
+# This section determines the number of papers that mention each disease as a MeSH keyword. It's important to note that the number of papers talking about a disease (in conjunction with obesity) actually tells us nothing about comorbidity, unless we make some strong assumptions about the *contents* of the papers. 
 # 
-# 1. Disease 'A' has a higher odds ratio than disease 'B', so 'A' gets more attention (what we want to know)
-# 2. Disease 'A' is much more severe than disease 'B', so 'A' gets more attention
-# 3. The comorbidity or severity of disease 'A' is harder to ascertain than disease 'B', and therefore more studies have been conducted to try to reduce the uncertainty
+# Papers that mention 'obesity' and disease 'A' together could be looking at:
+# 
+# 1. The prevalence or severity of disease 'A' in obese populations
+# 2. The prevalence or severity of obesity in populations with disease 'A'
+# 3. The prevalence or severity of some other issue ('Complication') in populations with both disease 'A' and obesity
+# 
+# Even in the subset of papers that study diseases in obese populations, there are multiple explanations for why two diseases have different citation counts:
+# 
+# 1. Disease 'A' is more common in obese populations than disease 'B', so 'A' gets more attention (what we want to know)
+# 2. Disease 'A' is much more severe in obese populations relative to disease 'B', so 'A' gets more attention
+# 3. The comorbidity or severity of disease 'A' in obese populations is harder to ascertain than disease 'B', and therefore more studies have been conducted to try to reduce the uncertainty
 # 4. Disease 'A' may have more treatment options available and/or is considered easier to treat, so 'A' gets more attention
-# 5. The research groups that study disease 'A' might just prefer breaking up their studies into smaller papers, or they might just publish more papers in general when compared to groups that focus on disease 'B'
+# 5. The research groups that study the relationships between disease 'A' and obesity might prefer breaking up their studies into smaller papers, or they might just publish more papers in general
 # 
 # There are almost certainly other reasons not outlined above. I'll talk about these issues more, in a bit.
 
@@ -327,7 +333,7 @@ for item in pubmed_records[0]:
 # 
 # This section gets the number of occurrences of each disease term in MeSH keywords. It also gets the number of disease terms per paper. The algorithm works by iterating through the records, and for each record, it iterates through the MeSH term. If a term is found in the "disease_terms" list, then that term is incremented by 1 in disease_counts. In addition, each valid disease term in a record is counted, and the total number of valid terms per record is stored in the diseases_per_paper dictionary.
 
-# In[45]:
+# In[142]:
 
 disease_counts = {}
 diseases_per_paper = {}
@@ -355,7 +361,7 @@ print("Time for algorithm: {} seconds\n".format(round(end_time - start_time),2))
 # 
 # This section makes some general observations about the results.
 
-# In[101]:
+# In[143]:
 
 import pandas as pd
 disease_cts_df = pd.DataFrame.from_dict(disease_counts, orient='index')
@@ -365,7 +371,7 @@ disease_cts_df.sort_values('Cts', ascending=False, inplace=True)
 disease_cts_df
 
 
-# In[104]:
+# In[144]:
 
 pct_zero = 100*diseases_per_paper[0]/len(pubmed_records)
 pct_one = 100*diseases_per_paper[1]/len(pubmed_records)
@@ -383,14 +389,9 @@ papers_with_one_or_more = len(pubmed_raw) - diseases_per_paper[0]
 
 print("Number of Disease Terms Per Paper")
 print(diseases_per_paper, "\n")
-print("Percentage of Papers With No Disease Terms in MeSH Keywords")
-print("{0:.2f} %\n".format(pct_zero))
-print("Percentage of Papers With One Disease Term in MeSH Keywords")
-print("{0:.2f} %\n".format(pct_one))
-print("Percentage of Papers With Two or More Disease Terms in MeSH Keywords")
-print("{0:.2f} %\n".format(pct_more))
-print("Total Number of Unique Disease Terms Found in the MeSH Keywords")
-print(len(disease_counts),"\n")
+print("Percentage of Papers With No Disease Terms in MeSH Keywords: {0:.2f} %".format(pct_zero))
+print("Percentage of Papers With One Disease Term in MeSH Keywords: {0:.2f} %".format(pct_one))
+print("Percentage of Papers With Two or More Disease Terms in MeSH Keywords: {0:.2f} %\n".format(pct_more))
 
 print("Number of diseases or syndromes with >   0 mentions: {}".format(len(disease_cts_df)))
 print("Number of diseases or syndromes with >   1 mentions: {}".format(len(more_than_one_df)))
@@ -398,68 +399,101 @@ print("Number of diseases or syndromes with >   5 mentions: {}".format(len(more_
 print("Number of diseases or syndromes with >  10 mentions: {}".format(len(more_than_ten_df)))
 print("Number of diseases or syndromes with >  20 mentions: {}".format(len(more_than_twenty_df)))
 print("Number of diseases or syndromes with > 100 mentions: {}".format(len(more_than_hundred_df)))
-print("Number of diseases or syndromes with > 200 mentions: {}".format(len(more_than_twohund_df)))
+print("Number of diseases or syndromes with > 200 mentions: {}\n".format(len(more_than_twohund_df)))
 
-print("\nTotal number of times disease or syndrome terms were mentioned: {}".format(total_mentions))
+print("Total number of times disease or syndrome terms were mentioned: {}".format(total_mentions))
 print("Total number of papers with at least one disease or syndrome term: {}".format(papers_with_one_or_more))
 
 
 # ## Plotting the Data
 
-# In[105]:
+# In[153]:
 
-max_X = len(more_than_twohund_df)
+df_to_plot = more_than_twenty_df
+cutoff = 20
+
+max_X = len(df_to_plot)
 X_vals = [x for x in range(0,max_X)]
 
 fig = plt.figure(figsize=(12,7))
 ax = fig.add_subplot(1,1,1)
-ax.bar(X_vals,more_than_twohund_df['Cts'],align='center',color='lightblue')
+ax.bar(X_vals,df_to_plot['Cts'],align='center',color='lightblue')
 ax.set_xticks(X_vals)
-ax.set_xticklabels(more_than_twohund_df['Disease'], rotation=90)
+ax.set_xticklabels(df_to_plot['Disease'], rotation=90)
 ax.set_xlim([-1,max_X])
 ax.set_xlabel('Disease or Syndrome')
 ax.set_ylabel('Number of Occurrences as MeSH Terms')
-ax.set_title('Number of Times a Disease Was Mentioned in Association with Obesity (2000-2012) [> 200 Mentions, MeSH]')
+ax.set_title('Number of Times a Disease Was Mentioned in Association with Obesity (2000-2012) [> '+str(cutoff)+' Mentions, MeSH]')
 plt.show()
 
 
 # ## Discussion
 # 
-# First, it's worth noting that the majority of the PubMed records that we retrieved (~59 %) don't discuss any diseases or syndromes in association with obesity. Approximately 26 % of the records contain only one associated disease or syndrome keyword, and the rest contain two or more. One record even contains 14 disease keywords in its MeSH terms!
+# First, it's worth noting that the majority of the PubMed records that we retrieved (~60 %) don't discuss any diseases or syndromes in association with obesity. Approximately 23 % of the records contain only one associated disease or syndrome keyword, and the rest contain two or more. Two records even contain 10 disease keywords in its MeSH terms!
 # 
-# Second, it's worth noting that, although there were 1089 different diseases or syndromes mentioned at least once, only 398 were mentioned more than 5 times. You can see if the figure above (only showing terms mentioned > 200 times) that there is a long tail, with a large number of diseases only discussed (alongside obesity) in a relatively small number of papers.
+# Second, it's worth noting that, although there were 468 different diseases or syndromes mentioned at least once, only 123 were mentioned more than 5 times. You can see if the figure above (only showing terms mentioned > 20 times) that there is a long tail, with a large number of diseases only discussed (alongside obesity) in a relatively small number of papers.
 # 
 # So, which diseases are discussed most often alongside obesity? 
 # 
-# 1. Diabetes Mellitus, Type 2
-# 2. Cardiovascular Diseases
-# 3. Metabolic Syndrome X
-# 4. Hypertension
+# 1. Cardiovascular Diseases
+# 2. Hypertension
+# 3. Diabetes Mellitus, Type 2
+# 4. Metabolic Syndrome X
 # 5. Diabetes Mellitus
-# 6. Fatty Liver
-# 7. Prader-Willi Syndrome
-# 8. Pregnancy Complications
-# 9. Chronic Disease
-# 10. Sleep Apnea, Obstructive
 # 
 # It's pretty clear that many of the disease / syndrome terms are related in nature. If I had more of a medical background (and understood the diseases better), I'd group similar conditions to better understand the classes of problems being studied.
 # 
-# So, what can we make of this data? As discussed at the beginning of this section, more studies (or more papers) do not necessarily mean higher incidence rates in obese populations! More studies simply mean that... more studies were conducted! It could be that the diseases with more attention are more prevalent (what we want), more severe, more treatable, more ambiguous (unclear odds ratios), etc. The only way to truly determine which of these diseases are comorbid (odds ratios > 1) is to extract the data from the records themselves.
+# So, what can we make of this data? As discussed at the beginning of this section, more studies (or more papers) do not necessarily mean higher incidence rates in obese populations! First, we have to consider that many papers talking about 'obesity' and 'disease A' aren't necessarily looking at the *relationship* between the two. They are looking at some third factor in populations with both 'obesity' and 'disease A'. Second, even if the studies are *about* the relationship between 'obesity' and 'disease A', we don't know whether the studies were looking at the odds of the disease in obese people or the odds of obesity in diseased people. Third, citation counts don't really tell us about odds ratios. It could be that the diseases with more attention are more prevalent (what we want), more severe, more treatable, more ambiguous (unclear odds ratios), etc. The only way to truly determine which of these diseases are comorbid (odds ratios > 1) is to extract the data from the records themselves.
 
-# # SECTION 5: CAN WE EXTRACT ODDS RATIOS FROM ABSTRACTS?
+# # SECTION 5: EXTRACTING DATA FROM ABSTRACTS
+# 
+# Finding the number of papers that mention a disease (in conjunction with obesity) only gets us so far towards answering our question. The pitfalls were discussed extensively in the previous section, so they won't be repeated here. What we really need to know is what the papers actually **say** about the disease in relation to obesity, and in particular, what we want to know is the **odds ratios** for the diseases in obese vs non-obese populations.
+# 
+# It's possible that a more refined PubMed search could eliminate many of the irrelevant records and return more epidemiology-oriented papers, making our job easier. As specified in the introduction, I'm carrying the assumption that the statistical results of the papers are not recorded in the metadata. If I am wrong (possible!), then the nature of this project changes quite a bit. However, for now, we're going to try to work with our very unconstrained dataset.
+# 
+# First, we'll take a closer look at some samples of the data, and then we'll try a few brute-force methods for gathering data. Text processing, in the best of scenarios (well-structured data), is challenging. In a scenario such as this (free-form text, no expectation of common language terms or writing styles), given the limited time, it may be impossible. If this was a more substantial project, the two areas that would need more focus would be: refining the initial search, and building out a decent set of text search algorithms.
+
+# ## Looking at a Sample of Abstracts
+# 
+# In this section, we'll print a few records for the most commonly cited term. It's worth a good, qualitative look at the data to get a feel for how different authors might or might not summarize the relevant data in the abstracts.
+
+# In[154]:
+
+disease_sought = disease_cts_df['Disease'].iloc[0]
+max_records = 5
+
+print("A sample of records with the term '{}':\n".format(disease_sought))
+
+returned_records = 0
+for record in pubmed_records:
+    for term in record['MESH']:
+        if term == disease_sought:
+            print('ABSTRACT')
+            print(record['ABSTRACT'], "\n")
+            print('MESH')
+            print(record['MESH'], "\n")
+            print('------------------------------------------------------\n')
+            returned_records += 1
+            break
+    if returned_records == max_records:
+        break
+
+
+# In[ ]:
+
+
+
+
+# In[ ]:
+
+
+
+
+# # SECTION 6: ADDITIONAL WORK
 # 
 # Content goes here...
 
-# In[88]:
-
-print("Coming soon!")
-
-
-# # SECTION 6: CAN WE LINK NUMBER OF CITATIONS TO COMORBIDITY?
-# 
-# Content goes here...
-
-# In[90]:
+# In[131]:
 
 print("Coming soon!")
 
@@ -468,7 +502,7 @@ print("Coming soon!")
 # 
 # Content goes here...
 
-# In[ ]:
+# In[132]:
 
-
+print("Coming soon!")
 
