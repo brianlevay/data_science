@@ -37,7 +37,7 @@
 # 
 # This section imports the main math and plotting libraries that we'll use throughout the project
 
-# In[138]:
+# In[1]:
 
 import math
 import numpy as np
@@ -49,14 +49,14 @@ get_ipython().magic('matplotlib inline')
 # 
 # This section creates the function that generates a synthetic dataset for our example plot
 
-# In[117]:
+# In[146]:
 
 def create_synthetic_OR_plot():
     X_locations = [x for x in range(0,10)]
     X_labels = [chr(x+65) for x in range(0,10)]
 
     data = []
-    means = {}
+    centers = {}
 
     for location in X_locations:
         p_disease_not_obesity = np.random.random_sample() * (0.5) + 0.02
@@ -79,9 +79,9 @@ def create_synthetic_OR_plot():
                 odds_ratio = fraction_disease_obesity / fraction_disease_not_obesity
                 disease_results.append(odds_ratio)
         data.append(disease_results)
-        means[location] = np.mean(disease_results)
+        centers[location] = np.median(disease_results)
 
-    sorted_locs = sorted(means, key=means.__getitem__, reverse=True)
+    sorted_locs = sorted(centers, key=centers.__getitem__, reverse=True)
     data_sorted = []
     labels_sorted = []
     for i in range(0,len(X_locations)):
@@ -96,7 +96,7 @@ def create_synthetic_OR_plot():
     ax.set_xticklabels(labels_sorted)
     ax.set_xlabel("Disease or Syndrome")
     ax.set_ylabel("P(Disease|Obesity) / P(Disease|NotObesity)")
-    ax.set_title("Synthetic Data Showing Diseases Ranked By Mean Odds Ratios")
+    ax.set_title("Synthetic Data Showing Diseases Ranked By Median Odds Ratios", y=1.05)
     plt.show()
 
 
@@ -104,7 +104,7 @@ def create_synthetic_OR_plot():
 # 
 # Re-run this section below to see how the randomness in the function can create a range of variances!
 
-# In[118]:
+# In[149]:
 
 create_synthetic_OR_plot()
 
@@ -126,7 +126,7 @@ create_synthetic_OR_plot()
 # 
 # This section imports the necessary modules to implement the API calls. The main package used for this section is the Entrez submodule from Biopython.
 
-# In[119]:
+# In[4]:
 
 import time
 from Bio import Entrez
@@ -137,7 +137,7 @@ Entrez.email = "brianjlevay@gmail.com"
 # 
 # This section defines a generic function for getting PubMed records and writing the relevant data to a file. The function accepts search terms, a filename, and a keyword to determine whether to fetch the results. An initial PubMed search is performed (eSearch), and the results are stored on the server by using the 'usehistory' keyword. The search key and web environment terms are returned, and if the user opts to fetch the results, the records are downloaded in batches, 10000 at a time (using eFetch). The records are stripped down and the relevant information is stored in a local file for later access.
 
-# In[139]:
+# In[5]:
 
 def get_api_data(terms, filename, want_fetch=False):
     handle = Entrez.esearch(db='pubmed', term=terms, usehistory='y')
@@ -200,7 +200,7 @@ def get_api_data(terms, filename, want_fetch=False):
 # 
 # Getting the search terms right for this exercise is critical, but an individual could likely spend days trying to understand the nuances of the descriptors / subheadings / modifiers used to retrieve data from the database. Initially, I chose to use a simple, high-level search just using 'obesity' and a date range, but this **retrieved a lot of irrelevant records**. I tried a modified search using 'obesity' with a subheading of 'morbidity', and the results appear to be more topical. However, the choices made at this step will ripple through the rest of the project, so it's important to be aware of the tradeoffs.
 
-# In[147]:
+# In[6]:
 
 # Need to specify obesity as the major MeSH descriptor (MajorTopicYN="Y") [majr]
 
@@ -225,7 +225,7 @@ obesity_morbidity_terms = 'obesity/morbidity[majr] 2000:2012[pdat]'
 # 
 # This section imports BeautifulSoup, which is used for XML parsing.
 
-# In[122]:
+# In[7]:
 
 from bs4 import BeautifulSoup
 
@@ -236,7 +236,7 @@ from bs4 import BeautifulSoup
 # 
 # This function opens the definitions file, extracts only the descriptors that match a SemanticTypeName specified as an argument, and writes those terms to another file. It's important to note that this function only considers semantic types listed under the preferred concept!
 
-# In[123]:
+# In[8]:
 
 def get_descriptors(semantic_type, filename):
     f = open('desc2015.xml', 'r')
@@ -267,7 +267,7 @@ def get_descriptors(semantic_type, filename):
 # 
 # This block of code runs the function defined above to generate a file with a list of applicable descriptors. You only need to run this once, and all future data access will come from the newly created file.
 
-# In[124]:
+# In[9]:
 
 # Only need to run this function once to get all of the relevant terms
 
@@ -278,7 +278,7 @@ def get_descriptors(semantic_type, filename):
 # 
 # This section loads the data from the raw PubMed records (previously stored from the API calls) and the disease terms (previously stored from the descriptors list) into their respective data structures for use.
 
-# In[152]:
+# In[10]:
 
 f = open('mesh_disease_syndrome_terms.txt', 'r')
 disease_terms = f.read()
@@ -333,7 +333,7 @@ for item in pubmed_records[0]:
 # 
 # This section gets the number of occurrences of each disease term in MeSH keywords. It also gets the number of disease terms per paper. The algorithm works by iterating through the records, and for each record, it iterates through the MeSH term. If a term is found in the "disease_terms" list, then that term is incremented by 1 in disease_counts. In addition, each valid disease term in a record is counted, and the total number of valid terms per record is stored in the diseases_per_paper dictionary.
 
-# In[142]:
+# In[11]:
 
 disease_counts = {}
 diseases_per_paper = {}
@@ -361,9 +361,10 @@ print("Time for algorithm: {} seconds\n".format(round(end_time - start_time),2))
 # 
 # This section makes some general observations about the results.
 
-# In[143]:
+# In[12]:
 
 import pandas as pd
+
 disease_cts_df = pd.DataFrame.from_dict(disease_counts, orient='index')
 disease_cts_df.reset_index(inplace=True)
 disease_cts_df.columns = ['Disease','Cts']
@@ -371,7 +372,7 @@ disease_cts_df.sort_values('Cts', ascending=False, inplace=True)
 disease_cts_df
 
 
-# In[144]:
+# In[13]:
 
 pct_zero = 100*diseases_per_paper[0]/len(pubmed_records)
 pct_one = 100*diseases_per_paper[1]/len(pubmed_records)
@@ -407,7 +408,7 @@ print("Total number of papers with at least one disease or syndrome term: {}".fo
 
 # ## Plotting the Data
 
-# In[153]:
+# In[141]:
 
 df_to_plot = more_than_twenty_df
 cutoff = 20
@@ -423,7 +424,7 @@ ax.set_xticklabels(df_to_plot['Disease'], rotation=90)
 ax.set_xlim([-1,max_X])
 ax.set_xlabel('Disease or Syndrome')
 ax.set_ylabel('Number of Occurrences as MeSH Terms')
-ax.set_title('Number of Times a Disease Was Mentioned in Association with Obesity (2000-2012) [> '+str(cutoff)+' Mentions, MeSH]')
+ax.set_title('Number of Times a Disease Was Mentioned in Association with Obesity (2000-2012) [> '+str(cutoff)+' Mentions, MeSH]', y=1.05)
 plt.show()
 
 
@@ -457,7 +458,7 @@ plt.show()
 # 
 # In this section, we'll print a few records for the most commonly cited term. It's worth a good, qualitative look at the data to get a feel for how different authors might or might not summarize the relevant data in the abstracts.
 
-# In[154]:
+# In[15]:
 
 disease_sought = disease_cts_df['Disease'].iloc[0]
 max_records = 5
@@ -479,13 +480,38 @@ for record in pubmed_records:
         break
 
 
+# ## Regex Tests
+# 
+# This is just a section for me to test out regex for finding odds ratio terms. Getting these terms correct is challenging. As you can see in some of the abstract samples shown above, there are lots of papers reporting "> or = ##", which means we're restricted to using capital "OR". Glancing through abstracts on my own, it does appear that "OR" is the standard abbreviation, so we're not likely missing too many papers leaving out "or = ".
+
+# In[122]:
+
+import re
+
+tests = ['My dog has an OR = 2.61.',          'My dog has an O.R. = 800.',          'My dog has an or=2.9.',          'My dog has an OR=2.9.',          'My dog has a p = 7.8.',          'My dog has an ore = 0.',          'My dog has a tor.= 1200',          'My dog has > or = 12 treats',          'My dog has an OR 262',          'My dog has an [OR] = 12.2',          'My dog has an [O.R.] = 19',          'My dog has an [O.R. = 124]',          'My dog has an (OR = 14)',         'My dog is THOR = 12']
+
+reg_main = r'(?:\[|\b|\()O.?R[\.\]\)=\s]+(?:\d*\.)?\d+'
+
+print("Testing the Main Regex Term:")
+for test in tests:
+    search = re.findall(reg_main,test)
+    print(search)
+
+tests_2 = ['My odds ratio is 2.4.',            'My Odds Ratio is 12.',            'My Odds ratio = 14.8.',            'My odds ratio of 42']
+
+reg_alt = r'[oO]dds [rR]atio (?:=|is|of) (?:\d*\.)?\d+'
+
+print("\nTesting the Alternative Regex Term:")
+for test in tests_2:
+    search = re.findall(reg_alt,test)
+    print(search)
+
+
 # ## Attempting to Get Values from the Text
 # 
 # In this section, we'll attempt to get some of the desired odds ratios out of the abstracts. The approach that we'll use here is a very simple one, using regex searchs with a few key expressions. We'll almost certainly miss reported odds ratios using this technique. In addition, we won't be able to distinguish P(Disease|Obesity) from P(Obesity|Disease), and we won't be able to know which disease corresponds to which odds ratio if multiple are reported in a study. Language processing is complicated, and in a real study, this section would require the bulk of the allocated time.
 
-# In[216]:
-
-import re
+# In[123]:
 
 study_results = []
 start_time = time.time()
@@ -497,22 +523,12 @@ for record in pubmed_records:
         if mesh_term in disease_terms:
             study_diseases.append(mesh_term)
     if len(study_diseases) > 0:
-        text = record['ABSTRACT'].lower().replace('~','')
-        search1 = re.findall(r'or = (?:\d*\.)?\d+', text)
-        search2 = re.findall(r'o.r. = (?:\d*\.)?\d+', text)
-        search3 = re.findall(r'odds ratio = (?:\d*\.)?\d+', text)
-        search4 = re.findall(r'odds ratio is (?:\d*\.)?\d+', text)
-        search5 = re.findall(r'odds ratio of (?:\d*\.)?\d+', text)
-        if len(search1) > 0:
-            study_values += search1
-        if len(search2) > 0:
-            study_values += search2
-        if len(search3) > 0:
-            study_values += search3
-        if len(search4) > 0:
-            study_values += search4
-        if len(search5) > 0:
-            study_values += search5
+        text = record['ABSTRACT'].replace('~','')
+        regex_terms = [reg_main, reg_alt]
+        for reg in regex_terms:
+            search_results = re.findall(reg,text)
+            if len(search_results) > 0:
+                study_values += search_results
         if len(study_values) > 0:
             study_results.append([record['ID'],study_diseases, study_values])
 end_time = time.time()
@@ -527,27 +543,81 @@ for i in range(0,30):
 # 
 # In this section, we'll pull the abstracts for a few records and compare them to the results obtained above. If the odds ratios that we scraped appear to be in-context and match the type of data we're looking for, we might have some more confidence in our methods.
 
-# In[ ]:
+# In[124]:
 
+i_vals = [0,5,6]
 
+for record in pubmed_records:
+    for val in i_vals:
+        if record['ID'] == study_results[val][0]:
+            print('ABSTRACT\n')
+            print(record['ABSTRACT'], "\n")
+            print('DATA COLLECTED\n')
+            print('Diseases:  ', study_results[val][1])
+            print('OR Values: ', study_results[val][2])
+            print('------------------------------------------------------\n')
+    
 
 
 # ## Refining the Results
 # 
-# Content goes here...
+# As you can see from the search results above, our data is still pretty messy. First, we only found a relatively small number of papers that reported odds ratios in a way that allows us to retrieve them. We almost certainly left data behind! However, earlier, more inclusive searches returned a lot of junk that wasn't related to odds ratios. Another problem is that many of the papers contain multiple disease terms and multiple odds ratios. It will be impossible for me to process the text (in this time window) in such a way that I can assign OR values to different diseases. So, for now, I have to discard all such records. 
+# 
+# That leaves only records that have one disease term. However, even in a single paper with a single disease term, there can be multple odds ratios published (see above). How do we know what each term is referring to? How do we even know that *any* of the terms refer to P(Disease|Obesity) / P(Disease|NotObesity)? We **don't**!
+# 
+# Regardless, if we have OR values from multiple papers, we might be able to make *some* inferences. We'll discuss this further in a bit.
 
-# In[ ]:
+# In[131]:
 
+single_study_results = {}
 
+for study in study_results:
+    values = []
+    if len(study[1]) == 1:
+        for odds_ratio in study[2]:
+            odds_value = re.findall(r'(?:\d*\.)?\d+', odds_ratio)
+            values += odds_value
+        values_float = [float(x) for x in values]
+        if study[1][0] in single_study_results:
+            single_study_results[study[1][0]] += values_float
+        else:
+            single_study_results[study[1][0]] = values_float
+            
+print("Total number of diseases with OR values: {0}\n".format(len(single_study_results)))
+for disease in single_study_results:
+    print(disease, ": ", single_study_results[disease])
 
 
 # ## Plotting the Data
 # 
-# Content goes here...
+# Caution! The plot below is merely showing the odds ratios taken from papers where only one disease term is present in the MeSH keywords. The odds ratios have no context, and many (most?) do NOT refer to the desired odds ratio: P(Disease|Obesity) / P(Disease|NotObesity).
+# 
+# **DO NOT USE THIS FIGURE TO MAKE ANY SIGNIFICANT CONCLUSIONS**
 
-# In[ ]:
+# In[162]:
 
+summary_diseases = {}
+for study in single_study_results:
+    summary_diseases[study] = np.median(single_study_results[study])
 
+sorted_diseases = sorted(summary_diseases, key=summary_diseases.__getitem__, reverse=True)
+data_sorted = []
+labels_sorted = []
+for i in range(0,len(summary_diseases)):
+    data_sorted.append(single_study_results[sorted_diseases[i]])
+    labels_sorted.append(sorted_diseases[i])
+
+fig = plt.figure(figsize=(10,7))
+ax = fig.add_subplot(1,1,1)
+ax.boxplot(data_sorted)
+ax.plot([0,len(summary_diseases)+1],[1,1],color="black")
+ax.set_yscale('log')
+ax.set_xticklabels(labels_sorted, rotation=90)
+ax.set_xlabel("Disease or Syndrome")
+ax.set_ylabel("Unspecified Odds Ratios from PubMed Abstracts")
+ax.set_title("Diseases Ranked By Median Odds Ratios, PubMed Papers with 1 Disease Term + Obesity [2000-2012]", y = 1.05)
+plt.text(1, 50, 'UNRELIABLE', fontsize=36, color="red", weight="bold")
+plt.show()
 
 
 # ## Discussion
