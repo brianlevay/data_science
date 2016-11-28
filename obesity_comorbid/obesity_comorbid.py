@@ -49,7 +49,7 @@ get_ipython().magic('matplotlib inline')
 # 
 # This section creates the function that generates a synthetic dataset for our example plot
 
-# In[146]:
+# In[2]:
 
 def create_synthetic_OR_plot():
     X_locations = [x for x in range(0,10)]
@@ -104,7 +104,7 @@ def create_synthetic_OR_plot():
 # 
 # Re-run this section below to see how the randomness in the function can create a range of variances!
 
-# In[149]:
+# In[3]:
 
 create_synthetic_OR_plot()
 
@@ -408,7 +408,7 @@ print("Total number of papers with at least one disease or syndrome term: {}".fo
 
 # ## Plotting the Data
 
-# In[141]:
+# In[14]:
 
 df_to_plot = more_than_twenty_df
 cutoff = 20
@@ -441,6 +441,11 @@ plt.show()
 # 3. Diabetes Mellitus, Type 2
 # 4. Metabolic Syndrome X
 # 5. Diabetes Mellitus
+# 6. Chronic Disease
+# 7. Pregnancy Complications
+# 8. Asthma
+# 9. Dyslipidemias
+# 10. Hyperlipidemias
 # 
 # It's pretty clear that many of the disease / syndrome terms are related in nature. If I had more of a medical background (and understood the diseases better), I'd group similar conditions to better understand the classes of problems being studied.
 # 
@@ -484,7 +489,7 @@ for record in pubmed_records:
 # 
 # This is just a section for me to test out regex for finding odds ratio terms. Getting these terms correct is challenging. As you can see in some of the abstract samples shown above, there are lots of papers reporting "> or = ##", which means we're restricted to using capital "OR". Glancing through abstracts on my own, it does appear that "OR" is the standard abbreviation, so we're not likely missing too many papers leaving out "or = ".
 
-# In[122]:
+# In[16]:
 
 import re
 
@@ -511,7 +516,7 @@ for test in tests_2:
 # 
 # In this section, we'll attempt to get some of the desired odds ratios out of the abstracts. The approach that we'll use here is a very simple one, using regex searchs with a few key expressions. We'll almost certainly miss reported odds ratios using this technique. In addition, we won't be able to distinguish P(Disease|Obesity) from P(Obesity|Disease), and we won't be able to know which disease corresponds to which odds ratio if multiple are reported in a study. Language processing is complicated, and in a real study, this section would require the bulk of the allocated time.
 
-# In[123]:
+# In[17]:
 
 study_results = []
 start_time = time.time()
@@ -543,7 +548,7 @@ for i in range(0,30):
 # 
 # In this section, we'll pull the abstracts for a few records and compare them to the results obtained above. If the odds ratios that we scraped appear to be in-context and match the type of data we're looking for, we might have some more confidence in our methods.
 
-# In[124]:
+# In[18]:
 
 i_vals = [0,5,6]
 
@@ -567,13 +572,15 @@ for record in pubmed_records:
 # 
 # Regardless, if we have OR values from multiple papers, we might be able to make *some* inferences. We'll discuss this further in a bit.
 
-# In[131]:
+# In[19]:
 
 single_study_results = {}
+single_study_ct = 0
 
 for study in study_results:
     values = []
     if len(study[1]) == 1:
+        single_study_ct += 1
         for odds_ratio in study[2]:
             odds_value = re.findall(r'(?:\d*\.)?\d+', odds_ratio)
             values += odds_value
@@ -583,7 +590,8 @@ for study in study_results:
         else:
             single_study_results[study[1][0]] = values_float
             
-print("Total number of diseases with OR values: {0}\n".format(len(single_study_results)))
+print("Total number of records that have OR values and only have one disease term: {0}".format(single_study_ct))
+print("Total number of unique diseases (from single-disease papers) that come from papers with OR values: {0}\n".format(len(single_study_results)))
 for disease in single_study_results:
     print(disease, ": ", single_study_results[disease])
 
@@ -594,7 +602,7 @@ for disease in single_study_results:
 # 
 # **DO NOT USE THIS FIGURE TO MAKE ANY SIGNIFICANT CONCLUSIONS**
 
-# In[162]:
+# In[20]:
 
 summary_diseases = {}
 for study in single_study_results:
@@ -622,8 +630,63 @@ plt.show()
 
 # ## Discussion
 # 
-# Content goes here...
+# As we discussed at length in the last section, simply counting the number of papers that reference obesity + some disease doesn't really tell us anything about the prevalence of that disease in obese populations. The only way we can understand the odds ratio [P(Disease|Obesity) / P(Disease|NotObesity)] is to extract that information from the published records themselves. Unfortunately, that's easier said than done.
+# 
+# You can see, just by looking through a sample of records, many papers aren't actually *about* the relationship between a disease and obesity. To extract the relevant data, we need to sort through the records and find ones that:
+# 
+# 1. Actually talk about the relationship between a disease and obesity (not just list both as keywords)
+# 2. Actually look at the odds ratio of interest, rather than something else (severity, etc.)
+# 3. Actually report the summary stats in the abstract in a predictable way
+# 
+# In this section, the best method I could come up with to address points 1-3 was to search for explicit mentions of odds ratios in abstracts and to only consider papers that talk about obesity + 1 other disease. I was unable to distinguish whether the odds ratios were actually *about* the relationship between the two, and I was unable to distinguish whether the odds ratios were reporting P(Disease|Obesity) / P(Disease|NotObesity) or P(Obesity|Disease) / P(Obesity|NotDisease). Thus, there is an **ENORMOUS UNCERTAINTY** in the accuracy of these results.
+# 
+# Here is our funnel:
+# 
+# * 10297 total PubMed records returned with obesity as a major topic and morbidity as a subheading, from 2000-2012
+# *  4133 records with at least one "Disease or Syndrome" MeSH keyword
+# *    64 records with an odds ratio in the abstract that could be detected using simple regex terms
+# *    44 records with an odds ratio in the abstract and only one disease term in MeSH
+# *    24 unique diseases with odds ratios reported in at least one abstract
+# 
+# You can clearly see that the largest drop in volume of information comes when we search for odds ratios in the abstracts, which should cause us to wonder how much data we're leaving behind by having search criteria that is too narrow.
+# 
+# All that being said, let's talk about the data we found. This data should not be used for making any meaningful conclusions, recommendations, etc. You have been warned! Most of the diseases appear to have relatively consistent odds ratios reported. In other words, most odds ratios tend to group as you might expect, if the subjects of the studies were similar: >> 1, ~1+/-, or << 1. 'Metabolic Syndrome X' is the notable exception, suggesting that the reported odds ratios may be referencing different types of scenarios and values are not comparable.
+# 
+# Some of the diseases that appear to be accompanied by the highest odds ratios are:
+# 
+# * Hyperinsulism
+# * Coronary Artery Disease
+# * Osteoarthritis
+# * Diabetes Mellitus
+# * Pregnancy Complications
+# * Cardiovascular Diseases
+# * Gastrointestinal Diseases
+# * Asthma
+# * Hypertension
 
 # # CONCLUSIONS
 # 
-# Content goes here...
+# The goal of this project was to determine which diseases are comorbid with obesity: 
+# 
+# P(Disease|Obesity) / P(Disease|NotObesity) > 1 [Odds Ratio (OR)]
+# 
+# We used papers published between 2000 and 2012 with the term 'obesity' as a keyword and 'morbidity' as a modifier for our data. The records for the papers (abstracts + metadata) were collected via the Entrez API interface to the PubMed database. After retrieving the publication records (~11000), we excluded papers that didn't have a disease or syndrome listed as another keyword [MeSH], and we were left with ~4000.
+# 
+# First, we looked at the number of papers that cite a particular disease as a keyword. This information is not a proxy for the magnitude of comorbidity, but it may indicate, in a general sense, whether there is some level of comorbidity (please see SECTION 4 for more discussion). Second, we attempted to find odds ratios reported in the abstracts themselves. We only found 64 papers with odds ratios reported in a format that could be picked up by our regex terms, and after excluding papers with multiple diseases listed (because we have no way to know which disease the stats are about), we were left with 44 papers of interest. In those papers, 24 different diseases were mentioned, and we were able to collect multiple odds ratio values for many of them. Having said that, there's still no way for us to know if the odds ratios reported in the abstracts are *actually* about the relationship between obesity and the disease of interest. There is a massive amount of uncertainty, and therefore, we need to be very cautious about interpretting the results.
+# 
+# We can note that many of the diseases with a large number of citations also happen to be accompanied by odds ratios (in the abstracts) > 1. This may be entirely circumstantial! The odds ratios may have nothing to do with the disease! Please see SECTION 5 for much more discussion. Having said that, here's the list of diseases that catch our eye:
+# 
+# Diseases that are cited frequently in association with obesity and *are* discussed in papers that report odds ratios > 1:
+# 
+# * Cardiovascular Diseases
+# * Diabetes Mellitus 
+# * Hypertension
+# * Pregnancy Complications
+# * Asthma
+# 
+# Diseases that are cited frequently in association with obesity and *are not* discussed in papers that report odds ratios > 1:
+# 
+# * Metabolic Syndrome X
+# * Chronic Disease
+# 
+# Heart disease, diabetes, high blood pressure, pregnancy complications, and asthma are all talked about quite frequently in association with obesity, and it seems likely (though not proven through this study) that they are all more common in obese populations than non-obese populations. I'm hesistant to go much further with my interpretations at this point.
